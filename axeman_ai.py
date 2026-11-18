@@ -468,4 +468,168 @@ def main():
         with col3:
             timeframe = st.selectbox("Analysis Horizon", ["6mo", "1y", "2y", "5y"], index=1)
 
-        if st.button("🚀 Run Axeman
+        if st.button("🚀 Run Axeman Wealth Analysis", type="primary"):
+            with st.spinner(f"Axeman AI is scanning {selected_name} ({ticker})..."):
+                raw_df = AxemanAIEngine.fetch_market_data(ticker, period=timeframe, interval="1d")
+
+                if raw_df.empty:
+                    st.warning(f"No data returned for `{ticker}`. Ensure NSE tickers end with `.NS` and BSE tickers end with `.BO`.")
+                else:
+                    df = AxemanAIEngine.compute_indicators(raw_df)
+                    result = AxemanAIEngine.analyze_indian_asset(df, asset_category)
+
+                    if "error" in result:
+                        st.error(result["error"])
+                    else:
+                        # Top Metrics Row
+                        m1, m2, m3, m4 = st.columns(4)
+                        prev_close = df['Close'].iloc[-2]
+                        pct_change = ((result['price'] - prev_close) / prev_close) * 100
+
+                        m1.metric("Current NAV / Price", f"₹{result['price']:,.2f}", f"{pct_change:+.2f}%")
+                        m2.metric("Axeman Decision", result['action'])
+                        m3.metric("AI Confidence", f"{result['confidence']}%", f"Score: {result['score']}/100")
+                        m4.metric("14-Day RSI", f"{result['rsi']:.1f}", "Oversold <30 | Overbought >70")
+
+                        # Decision Card
+                        box_class = f"signal-box-{result['status']}"
+                        st.markdown(f"""
+                        <div class="{box_class}">
+                            <h3>🪓 Axeman Verdict: {result['action']}</h3>
+                            <p><strong>Executive Summary:</strong> {result['summary']}</p>
+                            <p><strong>Key Support Zone:</strong> ₹{result['support']:,.2f} &nbsp;|&nbsp; <strong>Key Resistance Zone:</strong> ₹{result['resistance']:,.2f}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        st.markdown("#### 🧠 Quantitative Reasoning Breakdown")
+                        for reason in result['reasons']:
+                            st.write(f"• {reason}")
+
+                        # Interactive Chart
+                        render_financial_chart(df.tail(180), selected_name, "₹")
+
+    # --------------------------------------------------------------------------
+    # MODULE 2: CRYPTO CHART TRADER (LONG / SHORT ENGINE)
+    # --------------------------------------------------------------------------
+    elif module == "₿ Crypto Chart Trader (Long / Short)":
+        st.subheader("₿ Crypto Chart Intelligence — Long & Short Signal Generator")
+
+        c1, c2, c3 = st.columns([1.5, 1, 1])
+        with c1:
+            crypto_mode = st.radio("Pair Selection", ["Top Cryptocurrencies", "Custom Crypto Ticker"], horizontal=True)
+            if crypto_mode == "Top Cryptocurrencies":
+                crypto_name = st.selectbox("Select Crypto Pair", list(CRYPTO_ASSETS.keys()))
+                crypto_ticker = CRYPTO_ASSETS[crypto_name]
+            else:
+                crypto_ticker = st.text_input("Enter Crypto Ticker (e.g., PEPE-USD, LINK-USD)", value="BTC-USD").upper()
+                crypto_name = crypto_ticker
+        with c2:
+            interval = st.selectbox("Chart Timeframe", ["15m", "1h", "4h", "1d"], index=1)
+        with c3:
+            # Map appropriate lookback periods for intraday vs daily intervals
+            period_map = {"15m": "5d", "1h": "1mo", "4h": "3mo", "1d": "1y"}
+            lookback = period_map[interval]
+            st.text_input("Lookback Window", value=lookback, disabled=True)
+
+        if st.button("⚡ Analyze Crypto Chart", type="primary"):
+            with st.spinner(f"Axeman AI is reading candlestick structure for {crypto_name} ({interval})..."):
+                raw_df = AxemanAIEngine.fetch_market_data(crypto_ticker, period=lookback, interval=interval)
+
+                if raw_df.empty:
+                    st.warning(f"Unable to fetch chart data for `{crypto_ticker}`. Use format `SYMBOL-USD`.")
+                else:
+                    df = AxemanAIEngine.compute_indicators(raw_df)
+                    trade = AxemanAIEngine.analyze_crypto_chart(df)
+
+                    if "error" in trade:
+                        st.error(trade["error"])
+                    else:
+                        # Metrics
+                        cm1, cm2, cm3, cm4 = st.columns(4)
+                        cm1.metric("Live Mark Price", f"${trade['entry']:,.4f}" if trade['entry'] < 10 else f"${trade['entry']:,.2f}")
+                        cm2.metric("Trade Signal", trade['direction'])
+                        cm3.metric("Signal Confidence", f"{trade['confidence']}%")
+                        cm4.metric("Volatility (ATR)", f"${trade['atr']:,.4f}" if trade['atr'] < 10 else f"${trade['atr']:,.2f}")
+
+                        # Trade Setup Box
+                        box_class = f"signal-box-{trade['status']}"
+                        fmt = ",.4f" if trade['entry'] < 10 else ",.2f"
+                        st.markdown(f"""
+                        <div class="{box_class}">
+                            <h3>🪓 Axeman Signal: {trade['direction']}</h3>
+                            <p>{trade['summary']}</p>
+                            <hr style="border-color: rgba(255,255,255,0.2);">
+                            <p>
+                                <strong>🎯 Optimal Entry Zone:</strong> ${trade['entry']:{fmt}} &nbsp;&nbsp;|&nbsp;&nbsp;
+                                <strong>🛑 Stop-Loss (1.5x ATR):</strong> ${trade['stop_loss']:{fmt}} <br>
+                                <strong>💰 Take-Profit 1 (Conservative):</strong> ${trade['tp1']:{fmt}} &nbsp;&nbsp;|&nbsp;&nbsp;
+                                <strong>🚀 Take-Profit 2 (Runner):</strong> ${trade['tp2']:{fmt}}
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        st.markdown("#### 📊 Technical Confluence Factors")
+                        for r in trade['reasons']:
+                            st.write(f"• {r}")
+
+                        render_financial_chart(df.tail(150), f"{crypto_name} ({interval})", "$", trade_levels=trade)
+
+    # --------------------------------------------------------------------------
+    # MODULE 3: MULTI-ASSET SCREENER
+    # --------------------------------------------------------------------------
+    elif module == "🔍 Multi-Asset Portfolio Scanner":
+        st.subheader("🔍 Axeman Batch Screener — Indian Market & Crypto")
+        st.write("Scan all curated Indian Stocks, ETFs, Mutual Funds, and Cryptocurrencies simultaneously to find top Invest/Long and Withdraw/Short opportunities.")
+
+        if st.button("🛰️ Scan All Markets Now", type="primary"):
+            results_list = []
+            progress = st.progress(0)
+            all_items = []
+
+            for cat, items in INDIAN_ASSETS.items():
+                for name, tkr in items.items():
+                    all_items.append((cat, name, tkr, "INR"))
+            for name, tkr in CRYPTO_ASSETS.items():
+                all_items.append(("Crypto (1D)", name, tkr, "USD"))
+
+            total = len(all_items)
+            for idx, (cat, name, tkr, curr) in enumerate(all_items):
+                df_raw = AxemanAIEngine.fetch_market_data(tkr, period="1y", interval="1d")
+                if not df_raw.empty and len(df_raw) >= 50:
+                    df_ind = AxemanAIEngine.compute_indicators(df_raw)
+                    if curr == "INR":
+                        res = AxemanAIEngine.analyze_indian_asset(df_ind, cat)
+                        action = res["action"]
+                        price_str = f"₹{res['price']:,.2f}"
+                    else:
+                        res = AxemanAIEngine.analyze_crypto_chart(df_ind)
+                        action = res["direction"]
+                        price_str = f"${res['entry']:,.2f}"
+
+                    results_list.append({
+                        "Category": cat,
+                        "Asset Name": name,
+                        "Ticker": tkr,
+                        "Last Price": price_str,
+                        "RSI (14)": round(res["rsi"], 1),
+                        "AI Score": res["score"],
+                        "Confidence": f"{res['confidence']}%",
+                        "Axeman Recommendation": action
+                    })
+                progress.progress((idx + 1) / total)
+
+            if results_list:
+                scan_df = pd.DataFrame(results_list).sort_values(by="AI Score", ascending=False)
+                st.dataframe(scan_df, use_container_width=True, hide_index=True)
+
+    # Footer Disclaimer
+    st.markdown("""
+    <div class="disclaimer">
+        <strong>⚠️ Regulatory & Risk Disclaimer:</strong> Axeman AI is an algorithmic quantitative analysis tool built for educational and research purposes. 
+        It is not a SEBI-registered investment advisor. Stock, Mutual Fund, and Cryptocurrency markets carry high financial risk. 
+        Always verify signals and consult a certified financial planner before committing capital.
+    </div>
+    """, unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
