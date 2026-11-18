@@ -1,4 +1,4 @@
-```python
+
 """
 AXEMAN AI - Indian Stock Market, Mutual Fund, ETF & Crypto Quantitative Analyst
 -------------------------------------------------------------------------------
